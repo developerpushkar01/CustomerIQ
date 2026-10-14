@@ -7,3 +7,9 @@ venv/
 .DS_Store
 app_backup.py
 data/
+step1_load_data.py
+step2_eda.py
+step3_prepare_data.py
+step4_elbow_method.py
+step5_kmeans.py
+step6_marketing_intelligence.py
