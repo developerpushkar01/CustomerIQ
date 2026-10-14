@@ -6,6 +6,7 @@ import seaborn as sns
 
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import silhouette_score
 
 # ==========================================
 # PAGE CONFIGURATION
@@ -114,18 +115,92 @@ st.write(
 )
 
 # ==========================================
-# SIDEBAR
+# SIDEBAR: DATA SOURCE
 # ==========================================
 
 st.sidebar.title("⚙️ Analysis Settings")
 
-uploaded_file = st.sidebar.file_uploader(
-    "Upload customer data",
-    type=["csv"]
+data_source = st.sidebar.radio(
+    "Choose your data source",
+    ["Try Demo Dataset", "Upload Your Own CSV"]
 )
 
-if uploaded_file is None:
-    st.info("Upload a customer CSV file using the sidebar to begin.")
+uploaded_file = None
+
+if data_source == "Upload Your Own CSV":
+
+    uploaded_file = st.sidebar.file_uploader(
+        "Upload customer data",
+        type=["csv"]
+    )
+
+# ==========================================
+# SAMPLE DATASET
+# ==========================================
+
+def create_demo_dataset():
+
+    np.random.seed(42)
+
+    customer_count = 300
+
+    customer_ids = np.arange(1, customer_count + 1)
+
+    ages = np.random.randint(
+        18, 71, customer_count
+    )
+
+    genders = np.random.choice(
+        ["Male", "Female"],
+        customer_count
+    )
+
+    annual_income = np.random.randint(
+        15, 140, customer_count
+    )
+
+    spending_score = np.random.randint(
+        1, 101, customer_count
+    )
+
+    demo_df = pd.DataFrame({
+        "CustomerID": customer_ids,
+        "Gender": genders,
+        "Age": ages,
+        "Annual Income (k$)": annual_income,
+        "Spending Score (1-100)": spending_score
+    })
+
+    return demo_df
+
+# ==========================================
+# LOAD SELECTED DATA SOURCE
+# ==========================================
+
+if data_source == "Try Demo Dataset":
+
+    df = create_demo_dataset()
+
+    st.info(
+        "🧪 Demo Mode is active. "
+        "You're exploring synthetic sample customer data."
+    )
+
+elif uploaded_file is not None:
+
+    try:
+        df = pd.read_csv(uploaded_file)
+
+    except Exception as error:
+        st.error(f"Unable to read the CSV file: {error}")
+        st.stop()
+
+else:
+
+    st.info(
+        "Upload a customer CSV file using the sidebar "
+        "or select Try Demo Dataset to explore CustomerIQ."
+    )
 
     st.subheader("What CustomerIQ offers")
 
@@ -134,29 +209,34 @@ if uploaded_file is None:
     with col1:
         st.markdown("### 📂")
         st.markdown("**Data Analysis**")
-        st.write("Explore customer records and numerical patterns.")
+        st.write(
+            "Explore customer records and numerical patterns."
+        )
 
     with col2:
         st.markdown("### 🤖")
         st.markdown("**AI Segmentation**")
-        st.write("Use K-Means to discover groups of similar customers.")
+        st.write(
+            "Use K-Means to discover groups of similar customers."
+        )
 
     with col3:
         st.markdown("### 🎯")
         st.markdown("**Marketing Intelligence**")
-        st.write("Generate segment-level marketing recommendations.")
+        st.write(
+            "Generate segment-level marketing recommendations."
+        )
 
     st.stop()
 
 # ==========================================
-# LOAD DATA
+# VALIDATE DATA
 # ==========================================
 
-try:
-    df = pd.read_csv(uploaded_file)
-except Exception as error:
-    st.error(f"Unable to read the CSV file: {error}")
+if df.empty:
+    st.error("The dataset contains no records.")
     st.stop()
+
 
 if df.empty:
     st.error("The uploaded CSV contains no records.")
@@ -410,6 +490,12 @@ if st.button("🚀 Analyze Customers", type="primary"):
         )
 
         segment_labels = model.fit_predict(X_scaled)
+        # Evaluate clustering quality
+        if 2 <= len(set(segment_labels)) < len(X_scaled):
+            score = silhouette_score(X_scaled, segment_labels)
+        else:
+            score = None
+
 
         # Preserve original customer records
         results = df.copy()
@@ -505,6 +591,8 @@ if st.button("🚀 Analyze Customers", type="primary"):
         st.session_state["customeriq_centers"] = (
             scaler.inverse_transform(model.cluster_centers_)
         )
+
+        st.session_state["customeriq_silhouette_score"] = score
 # ==========================================
 # DISPLAY ANALYSIS
 # ==========================================
@@ -519,7 +607,7 @@ if "customeriq_results" in st.session_state:
 
     st.header("3. Customer Segmentation Results")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         st.metric("Customers Analyzed", f"{len(results):,}")
@@ -534,6 +622,15 @@ if "customeriq_results" in st.session_state:
         st.metric(
             "Largest Segment",
             f"{profiles['Customer_Count'].max():,} customers"
+        )
+
+    silhouette = st.session_state.get("customeriq_silhouette_score")
+
+    with col4:
+        st.metric(
+            "Silhouette Score",
+            f"{silhouette:.3f}" if silhouette is not None else "N/A",
+            help="Measures how well-separated the customer segments are. Higher values generally indicate better-separated clusters."
         )
 
     # ==================================
